@@ -1,0 +1,104 @@
+#include <SoftwareSerial.h> //Para emular un puerto UART virtual
+
+const uint8_t   SDW_SF       = 3;         // PIN SHUTDOWN DEL MÓDULO SFX
+const uint8_t   TX_SFX       = 5;         // PIN TX DEL SOFTWARE SERIAL PARA WISOL
+const uint8_t   RX_SFX       = 4;         // PIN RX DEL SOFTWARE SERIAL PARA WISOL
+const uint8_t   USER_BUTTON  = 2;         // ENTRADA PARA EL BOTÓN DE USUARIO
+
+SoftwareSerial UART_SFX(RX_SFX, TX_SFX); // SIGFOX WISOL UART PARA DEBUG - RX, TX
+
+String bufer; //variable donde guardaremos nuestro payload
+String bufer2="\n";   //agregamos un salto de linea al final de nuestro payload   
+
+void setup() 
+{
+  Serial.println("PRACTICA 3 - DECODIFICACION SIGOFOX");
+  analogReference(INTERNAL);
+  Serial.begin(9600); //Inicializamos la comunicación serial nativa a 9600 bps
+  UART_SFX.begin(9600); ///Inicializamos la comunicación serial virtual a 9600 bps
+  pinMode(USER_BUTTON, INPUT); //declaramos el pin como entrada digital
+  pinMode(SDW_SF, OUTPUT);   //enable modulo wisol
+}
+
+void leer_voltajes()
+{
+  //AT$SF= comando para mandar la informacion por sigfox
+  //Maximo 12 bytes
+  bufer="AT$SF=";
+  
+  float voltaje;//variable para almacenar los voltajes de A0, A1 y A2
+  Serial.print("El voltaje leido en A0 es: ");
+  voltaje = (5/1023.0)*analogRead(A0);//se hace la conversión del ADC a voltaje 
+  Serial.println(voltaje);
+  //agregamos nuestro valor del voltaje al payload a enviar
+  add_float(voltaje); //un flotante ocupa 4 bytes
+  Serial.print("El buffer actualizado es: ");
+  Serial.println(bufer);
+
+  Serial.print("El voltaje leido en A1 es: ");
+  voltaje = (3.3/1023.0)*analogRead(A1);//se hace la conversión del ADC a voltaje 
+  Serial.println(voltaje);
+  //agregamos nuestro valor del voltaje al payload a enviar
+  add_float(voltaje); //un flotante ocupa 4 bytes
+  Serial.print("El buffer actualizado es: ");
+  Serial.println(bufer);
+
+  Serial.print("El voltaje leido en A2 es: ");
+  voltaje = (5/1023.0)*analogRead(A2);//se hace la conversión del ADC a voltaje 
+  Serial.println(voltaje);
+  //agregamos nuestro valor del voltaje al payload a enviar
+  add_float(voltaje); //un flotante ocupa 4 bytes
+  Serial.print("El buffer actualizado es: ");
+  Serial.println(bufer);
+  
+  //enviamos nuestro dato por Sigfox
+  send_message(bufer);
+}
+
+void loop() 
+{
+  if (digitalRead(USER_BUTTON)==LOW)
+  {
+    delay(200);
+    leer_voltajes();
+    delay(1000);
+  } 
+}
+void add_float(float var1) //funcion para agregar flotantes al payload
+{
+  byte* a1 = (byte*) &var1;    //convertimos el dato a bytes
+  String str1;
+  //agregamos al comando AT$SF= nuestra informacion a enviar
+  for(int i=0;i<4;i++)
+  {
+    str1=String(a1[i], HEX);    //convertimos el valor hex a string 
+    if(str1.length()<2)
+    {
+      bufer+=0+str1;    //si no, se agrega un cero
+    }
+    else
+    {
+      bufer+=str1;    //si esta completo, se copia tal cual
+    }
+  }
+}
+
+void send_message(String payload)
+{
+  Serial.println("Enviando el dato...");
+  //agregamos el salto de linea "\n"
+  bufer+=bufer2;
+  //*******************
+  //Habilitamos el modulo Sigfox
+  digitalWrite(SDW_SF, HIGH);
+  delay(1000);
+  //Reset del canal para asegurar que manda en la frecuencia correcta
+  UART_SFX.print("AT$RC\n"); 
+  //************************
+  //Enviamos la informacion por sigfox
+  UART_SFX.print(bufer);
+  delay(3000);
+  //deshabilitamos el modulo Sigfox
+  digitalWrite(SDW_SF, LOW);
+  Serial.println("Dato enviado");
+}
