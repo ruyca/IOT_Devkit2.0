@@ -1,2 +1,2 @@
 # Id_PAC_and_sigfox_message
-Sigfox
+Repositorio con pruebas e información del uso de SigFox
